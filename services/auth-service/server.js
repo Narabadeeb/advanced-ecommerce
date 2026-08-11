@@ -16,6 +16,24 @@ app.post("/register", async (req, res) => {
             res.status(400).send(error.message);
             }
 });
+const jwt = require("jsonwebtoken");
+app.post("/login", async (req, res) => {
+    try {
+        const { email, password } = req.body;
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(404).send("User not found");
+            }
+            const isMatch = await bcrypt.compare(password, user.password);
+            if (!isMatch) {
+                return res.status(401).send("Invalid password");
+                }
+                const token = jwt.sign({ userId: user._id }, "secretkey123", { expiresIn: "1h" });
+                res.status(200).send({ token });
+                } catch (error) {
+                    res.status(500).send(error.message);
+                    }
+});
 app.get("/", (req, res) => {res.send("Hello from Auth Service!");
     });
     app.listen(4001, () => {
