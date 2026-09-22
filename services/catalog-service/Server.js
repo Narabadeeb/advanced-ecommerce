@@ -1,11 +1,14 @@
 const express = require("express");
 const sequelize = require("./config/database");
 const Product = require("./models/Product");
+const redisClient = require("./config/redis");
+
 const app = express();
 app.use(express.json());
 app.post("/products", async (req, res) => {
 try {
 const product = await Product.create(req.body);
+await redisClient.del("products");
 res.status(201).json(product);
 } catch (error) {
 res.status(400).json({ error: error.message });
@@ -13,7 +16,12 @@ res.status(400).json({ error: error.message });
 });
 app.get("/products", async (req, res) => {
 try {
+const cachedProducts = await redisClient.get("products");
+if (cachedProducts) {
+return res.status(200).json(JSON.parse(cachedProducts));
+}
 const products = await Product.findAll();
+await redisClient.set("products", JSON.stringify(products));
 res.status(200).json(products);
 } catch (error) {
 res.status(500).json({ error: error.message });
@@ -37,6 +45,7 @@ if (!product) {
 return res.status(404).json({ error: "Product not found" });
 }
 await product.update(req.body);
+await redisClient.del("products");
 res.status(200).json(product);
 } catch (error) {
 res.status(400).json({ error: error.message });
@@ -49,6 +58,7 @@ if (!product){
 return res.status(404).json({ error: "Product not found" });
 }
 await product.destroy();
+await redisClient.del("products");
 res.status(200).json({ message: "Product deleted successfully" });
 } catch (error) {
 res.status(500).json({ error: error.message });
