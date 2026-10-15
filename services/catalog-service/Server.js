@@ -64,6 +64,28 @@ res.status(200).json({ message: "Product deleted successfully" });
 res.status(500).json({ error: error.message });
 }
 });
+app.post("/products/:id/reserve", async (req, res) => {
+const t = await sequelize.transaction();
+try {
+const product = await Product.findByPk(req.params.id, { transaction: t, lock: t.LOCK.UPDATE });
+if (!product) {
+await t.rollback();
+return res.status(404).json({ error: "Product not found" });
+}
+const quantity = req.body.quantity;
+if (product.stock < quantity) {
+await t.rollback();
+return res.status(400).json({ error: "Insufficient stock" });
+}
+await product.update({ stock: product.stock - quantity },{ transaction: t });
+await t.commit();
+await redisClient.del("products");
+res.status(200).json(product);
+} catch (error) {
+if (!t.finished) await t.rollback();
+res.status(500).json({ error: error.message });
+}
+});
 sequelize.authenticate().then(() => {
 console.log("MySQL connected successfully!");
 return sequelize.sync();
